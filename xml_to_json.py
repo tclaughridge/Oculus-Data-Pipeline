@@ -11,8 +11,8 @@ load_dotenv()
 
 # CONFIGURATION ================================================================
 
-xml_file = '/Users/tclaughridge/Downloads/Users/tclaughridge/Downloads/TSJN-03-01-metadata-WithIndex-withMidSub.xml'
-output_json_file = 'output.json'
+xml_file = '/Users/tclaughridge/Downloads/test.xml'
+output_json_file = 'output2.json'
 save_json = True
 
 api_key = os.getenv("OPENAI_API_KEY")

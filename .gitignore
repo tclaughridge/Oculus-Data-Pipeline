@@ -1,3 +1,5 @@
 # Files to ignore in commits
 .env
 .DS_Store
+*.json
+*.xml
