@@ -1,11 +1,6 @@
 import hashlib
 import json
-
-# CONFIGURATION ================================================================
-
-modify_json_file = 'output.json'
-
-# ==============================================================================
+import argparse
 
 def generate_uri(input_string):
     # Generate a URI from a string by hashing it and taking the first 8 characters
@@ -42,18 +37,16 @@ def add_uris_to_json(json_data):
     return json_data
 
 if __name__ == '__main__':
-    # Customize Configuration
-    config = input("Do you want to proceed with the default configuration? (y/n) ")
+    parser = argparse.ArgumentParser(description='Classify JSON terms.')
+    parser.add_argument('modify_json_file', help='Path to the JSON file')
+    args = parser.parse_args()
 
-    if config.lower() == 'n':
-        modify_json_file = input("Enter the path to the JSON file: ")
-
-    with open(modify_json_file, 'r') as f:
+    with open(args.modify_json_file, 'r') as f:
         json_data = json.load(f)
 
     updated_json_data = add_uris_to_json(json_data)
 
-    with open(modify_json_file, 'w') as f:
+    with open(args.modify_json_file, 'w') as f:
         json.dump(updated_json_data, f, indent=4)
 
-    print(f"URIs written to {modify_json_file}")
+    print(f"URIs written to {args.modify_json_file}")

@@ -1,15 +1,7 @@
 import json
+import argparse
 from tqdm import tqdm
 from neo4j import GraphDatabase
-
-# CONFIGURATION ================================================================
-
-NEO4J_URI = "bolt://localhost:7687"
-NEO4J_USER = "neo4j"
-NEO4J_PASSWORD = "password"
-json_file = 'output.json'
-
-# ==============================================================================
 
 def create_document(tx, document):
     query = """
@@ -134,11 +126,18 @@ def import_data(json_data, driver):
                     session.execute_write(relate_sub_term, term['term'], term['sub'], "sub", parent_type)
 
 if __name__ == "__main__":
-    with open(json_file, 'r') as f:
+    parser = argparse.ArgumentParser(description='Classify JSON terms.')
+    parser.add_argument('NEO4J_URI', help='Neo4j URI')
+    parser.add_argument('NEO4J_USER', help='Neo4j user')
+    parser.add_argument('NEO4J_PASSWORD', help='Neo4j password')
+    parser.add_argument('json_file', help='Path to the JSON file')
+    args = parser.parse_args()
+
+    with open(args.json_file, 'r') as f:
         json_data = json.load(f)
 
     # Connect to the Neo4j database
-    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+    driver = GraphDatabase.driver(args.NEO4J_URI, auth=(args.NEO4J_USER, args.NEO4J_PASSWORD))
 
     # Import the JSON data into Neo4j
     import_data(json_data, driver)

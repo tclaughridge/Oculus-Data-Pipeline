@@ -1,13 +1,7 @@
 import xml.etree.ElementTree as ET
 import json
 import re
-
-# CONFIGURATION ================================================================
-
-xml_file = '/Users/tclaughridge/Downloads/test.xml'
-output_json_file = 'output.json'
-
-# ==============================================================================
+import argparse
 
 def normalize_term(term):
     # Normalize the term for consistent comparison
@@ -106,16 +100,14 @@ def parse_xml_to_json(xml_file):
     return json_data
 
 if __name__ == '__main__':
-    # Customize Configuration
-    config = input("Do you want to proceed with the default configuration? (y/n) ")
+    parser = argparse.ArgumentParser(description='Convert XML to JSON.')
+    parser.add_argument('input_file', help='Path to the input XML file')
+    parser.add_argument('output_file', help='Path to the output JSON file')
+    args = parser.parse_args()
 
-    if config.lower() == 'n':
-        xml_file = input("Enter the path to the input XML file: ")
-        output_json_file = input("Enter the path to the output JSON file: ")
-
-    json_data = parse_xml_to_json(xml_file)
+    json_data = parse_xml_to_json(args.input_file)
     
-    with open(output_json_file, 'w') as f:
+    with open(args.output_file, 'w') as f:
         json.dump(json_data, f, indent=4)
 
-    print(f"JSON data has been written to {output_json_file}")
+    print(f"JSON data has been written to {args.output_file}")

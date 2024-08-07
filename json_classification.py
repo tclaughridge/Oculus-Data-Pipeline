@@ -1,23 +1,12 @@
 import os
 import json
-import hashlib
 import re
+import argparse
 from tqdm import tqdm
 from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
-
-# CONFIGURATION ================================================================
-
-modify_json_file = 'output.json'
-save_json = True
-
-api_key = os.getenv("OPENAI_API_KEY")
-model = 'gpt-4o-mini'
-batch_size = 300
-
-# ==============================================================================
 
 def convert_name(name):
     # Convert from "Last, First" to "First Last"
@@ -39,7 +28,7 @@ def create_term_obj(term, label):
     }
     return term_obj
 
-def classify_terms(terms):
+def classify_terms(terms, api_key, model, batch_size):
     # Prepare the batch request for the OpenAI API
     term_to_label = {}
     word_count = 0
@@ -104,9 +93,8 @@ def classify_terms(terms):
             })
         
     # Save the responses to a file
-    if save_json:
-        with open('openai_response.json', 'w') as json_file:
-            json.dump(responses, json_file, indent=4)
+    with open('openai_response.json', 'w') as json_file:
+        json.dump(responses, json_file, indent=4)
 
     return term_to_label, word_count
 
@@ -161,21 +149,14 @@ if __name__ == '__main__':
     # Initialize global variables
     known_entities = {}
 
-    # Customize Configuration
-    config = input("Do you want to proceed with the default configuration? (y/n) ")
+    parser = argparse.ArgumentParser(description='Classify JSON terms.')
+    parser.add_argument('modify_json_file', help='Path to the JSON file')
+    parser.add_argument('api_key', help='OpenAI API Key')
+    parser.add_argument('model', help='OpenAI Model')
+    parser.add_argument('batch_size', help='API Call Batch Size')
+    args = parser.parse_args()
 
-    if config.lower() == 'n':
-        modify_json_file = input("Enter the path to the JSON file: ")
-
-        api_key = input("Enter your OpenAI API key: ")
-        m = input("Proceed with the default model (GPT-4o)? (y/n) ")
-
-        if m.lower() == 'n':
-            model = input("Enter the model name: ")
-
-        batch_size = int(input("Enter the API batch size: "))
-
-    with open(modify_json_file, 'r') as f:
+    with open(args.modify_json_file, 'r') as f:
         json_data = json.load(f)
 
     terms_to_classify = set()
@@ -192,12 +173,12 @@ if __name__ == '__main__':
             if isinstance(sub_term, str):
                 terms_to_classify.add(sub_term)
 
-    term_to_label, word_count = classify_terms(list(terms_to_classify))
+    term_to_label, word_count = classify_terms(list(terms_to_classify), args.api_key, args.model, int(args.batch_size))
 
     updated_json_data = update_json_with_classifications(json_data, term_to_label)
     
-    with open(modify_json_file, 'w') as f:
+    with open(args.modify_json_file, 'w') as f:
         json.dump(updated_json_data, f, indent=4)
 
-    print(f"Classified JSON data has been written to {modify_json_file}")
+    print(f"Classified JSON data has been written to {args.modify_json_file}")
     print(f"Total terms processed: {word_count}")
