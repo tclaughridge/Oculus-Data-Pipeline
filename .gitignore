@@ -3,3 +3,6 @@
 .DS_Store
 *.json
 *.xml
+
+# Directories to ignore in commits
+data/
