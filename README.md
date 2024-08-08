@@ -19,7 +19,7 @@ Next, open the file ```run_pipeline.py``` in your preferred text editor. You wil
 
 As a quick walkthrough - The first section, labeled **OpenAI**, contains three elements.
 
-The first is the ```api_key```. By default, this is set to an internal environment variable. To link the API to your own account, you can either set up your own .env file, or you can simply replace the current value with your own key. Ex: ```api_key = 'abc123'```
+The first is the ```api_key```. By default, this is set to an internal environment variable. To link the API to your own account, you can either set up your own .env file, or you can simply replace the current value with your own key. Ex: ```api_key = 'abc123'```. This key can be created/found under the OpenAI API Dashboard: https://platform.openai.com/api-keys
 
 The second and third parameters are the ```model``` (version of ChatGPT, essentially) and ```batch_size``` (how large the input is allowed to be) which the API will use. These can probably be left alone.
 
