@@ -7,7 +7,7 @@ load_dotenv()
 
 # CONFIGURATION ================================================================
 
-#OpenAI
+# OpenAI
 api_key = os.getenv("OPENAI_API_KEY")
 model = 'gpt-4o-mini'
 batch_size = 300
