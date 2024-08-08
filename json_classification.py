@@ -1,4 +1,3 @@
-import os
 import json
 import re
 import argparse
@@ -158,6 +157,15 @@ if __name__ == '__main__':
 
     with open(args.modify_json_file, 'r') as f:
         json_data = json.load(f)
+    
+    # Initial pass to populate known entities
+    for document in json_data['documents']:
+        for author in document.get('authors', []):
+            known_entities[normalize_term(author['name'])] = 'PERSON'
+        for recipient in document.get('recipients', []):
+            known_entities[normalize_term(recipient['name'])] = 'PERSON'
+        if 'location' in document and document['location']:
+            known_entities[normalize_term(document['location']['name'])] = 'PLACE'
 
     terms_to_classify = set()
     for document in json_data['documents']:
@@ -180,5 +188,4 @@ if __name__ == '__main__':
     with open(args.modify_json_file, 'w') as f:
         json.dump(updated_json_data, f, indent=4)
 
-    print(f"Classified JSON data has been written to {args.modify_json_file}")
-    print(f"Total terms processed: {word_count}")
+    print(f"Classified JSON data has been written to {args.modify_json_file}. {word_count} total terms processed.")
