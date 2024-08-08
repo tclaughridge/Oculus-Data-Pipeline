@@ -61,7 +61,7 @@ If necessary, each pipeline script can also be run individually, taking the foll
 4. ```json_to_db.py``` inserts the modified JSON into the Neo4j database
    
    ```zsh
-   json_to_db.py NEO4J_URI NEO4J_USER NEO4J_PASSWORD input_file.json
+   python3 json_to_db.py NEO4J_URI NEO4J_USER NEO4J_PASSWORD input_file.json
    ```
 
 ## Making Modifications
