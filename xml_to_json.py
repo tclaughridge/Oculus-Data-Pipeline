@@ -1,6 +1,7 @@
 import xml.etree.ElementTree as ET
 import json
 import re
+import os
 import argparse
 
 def normalize_term(term):
@@ -100,6 +101,9 @@ def parse_xml_to_json(xml_file):
     return json_data
 
 if __name__ == '__main__':
+    # Create data directory
+    os.makedirs("data", exist_ok=True)
+
     parser = argparse.ArgumentParser(description='Convert XML to JSON.')
     parser.add_argument('input_file', help='Path to the input XML file')
     parser.add_argument('output_file', help='Path to the output JSON file')
@@ -107,7 +111,7 @@ if __name__ == '__main__':
 
     json_data = parse_xml_to_json(args.input_file)
     
-    with open(args.output_file, 'w') as f:
+    with open(f'data/{args.output_file}', 'w') as f:
         json.dump(json_data, f, indent=4)
 
     print(f"JSON data has been written to {args.output_file}")

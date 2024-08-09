@@ -1,5 +1,6 @@
 import json
 import re
+import time
 import argparse
 from tqdm import tqdm
 from openai import OpenAI
@@ -27,73 +28,114 @@ def create_term_obj(term, label):
     }
     return term_obj
 
-def classify_terms(terms, api_key, model, batch_size):
-    # Prepare the batch request for the OpenAI API
+def classify_terms(terms, api_key, model):
+    # Prepare the request for the OpenAI API
+    client = OpenAI(api_key=api_key,)
     term_to_label = {}
     word_count = 0
 
-    responses = []
+    tasks = []
 
-    for i in tqdm(range(0, len(terms), batch_size), desc="Classifying terms", unit="batch"):
-        batch_terms = terms[i:i+batch_size]
-
+    for index, term in enumerate(terms):
         # Remove known entities from the batch
-        for term in batch_terms:
-            word_count += len(term.split())
-            if normalize_term(term) in known_entities:
-                batch_terms.remove(term)
+        word_count += len(term.split())
+        if normalize_term(term) in known_entities:
+            continue
         
-        # Send the request to the OpenAI API
-        client = OpenAI(api_key=api_key,)
-        response = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an NER system that classifies terms into PERSON, PLACE, ORGANIZATION, or TERM. Please look at each provided term in the list, and return it in the format {term: 'example_term', classification: 'example_class'}. For example, if an input term is 'Thomas Jefferson', you should return {term: 'Thomas Jefferson', classification: 'PERSON'}. Additionally, please only differentiate terms by line. 'Aberdeen, Scotland' should be one term, as it occupies one line. Please output in JSON format."
+        # Accumulate tasks
+        task = {
+            "custom_id": f"task-{index}",
+            "method": "POST",
+            "url": "/v1/chat/completions",
+            "body": {
+                "model": model,
+                "temperature": 0.1,
+                "response_format": { 
+                    "type": "json_object"
                 },
-                {
-                    "role": "user",
-                    "content": "Classify the following terms:\n\n" + "\n".join(batch_terms)
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": api_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": term
+                    }
+                ],
+            }
+        }
+        tasks.append(task)
+
+    # Creating batch file
+    with open('data/batch_tasks.jsonl', 'w') as file:
+        for obj in tasks:
+            file.write(json.dumps(obj) + '\n')
+    
+    # Uploading batch file
+    batch_file = client.files.create(
+        file=open('data/batch_tasks.jsonl', 'rb'),
+        purpose="batch"
+    )
+
+    # Creating batch job
+    batch_job = client.batches.create(
+        input_file_id=batch_file.id,
+        endpoint="/v1/chat/completions",
+        completion_window="24h"
+    )
+    print(f"Batch sent to OpenAI API. Job ID: {batch_job.id}")
+
+    # Await response
+    print("Awaiting response...")
+    while True:
+        batch_job = client.batches.retrieve(batch_job.id)
+        if batch_job.status == "completed" or batch_job.status == "failed":
+            print(f"Batch job completed with status {batch_job.status}.")
+            break
+        time.sleep(5)
+
+    # Retrieve Results
+    result_file_id = batch_job.output_file_id
+    result = client.files.content(result_file_id).content
+
+    with open("data/batch_job_results.jsonl", 'wb') as file:
+        file.write(result)
+    
+    # Map custom_id to terms from batch_tasks.jsonl
+    term_mapping = {}
+    with open('data/batch_tasks.jsonl', 'r') as file:
+        for line in file:
+            json_object = json.loads(line.strip())
+            custom_id = json_object['custom_id']
+            term = json_object['body']['messages'][1]['content']
+            term_mapping[custom_id] = term
+    
+    # Loading data from saved file
+    with open('data/batch_job_results.jsonl', 'r') as file:
+        for line in file:
+            json_object = json.loads(line.strip())
+            custom_id = json_object['custom_id']
+            term = term_mapping[custom_id]
+            classification = json_object['response']['body']['choices'][0]['message']['content'].strip()
+
+            try:
+                classification_data = json.loads(classification)
+                term_type = classification_data['classification']
+
+                term_to_label[term] = {
+                    'type': term_type,
                 }
-            ],
-            model=model,
-            response_format={ "type": "json_object" }
-        )
 
-        # Parse the response
-        try:
-            response_text = response.choices[0].message.content.strip()
+                # Update global known entities if applicable
+                if term_type in ['PERSON', 'PLACE', 'ORGANIZATION']:
+                    known_entities[normalize_term(term)] = term_type
 
-            response_data = json.loads(response_text)
-            classifications = response_data.get("terms", [])
-            if not isinstance(classifications, list):
-                raise ValueError("Expected a list of dictionaries")
-
-            batch_term_to_label = {item['term']: item['classification'] for item in classifications}
-            term_to_label.update(batch_term_to_label)
-
-            # Save the response for analysis
-            responses.append({
-                "batch_terms": batch_terms,
-                "response": response_text
-            })
-
-            # Update global known entities
-            for term, label in batch_term_to_label.items():
-                if label in ['PERSON', 'PLACE', 'ORGANIZATION']:
-                    known_entities[normalize_term(term)] = label
-
-        except (json.JSONDecodeError, ValueError) as e:
-            print(f"Error parsing response: {e}")
-            responses.append({
-                "batch_terms": batch_terms,
-                "response": response_text,
-                "error": str(e)
-            })
-        
-    # Save the responses to a file
-    with open('openai_response.json', 'w') as json_file:
-        json.dump(responses, json_file, indent=4)
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"Error parsing response for term {term}: {e}")
+                term_to_label[term] = {
+                    'type': 'TERM',
+                }
 
     return term_to_label, word_count
 
@@ -103,19 +145,19 @@ def update_json_with_classifications(json_data, term_to_label):
             normalized_name = normalize_term(author['name'])
             author['name'] = convert_name(author['name'])
             if normalized_name in term_to_label:
-                author['type'] = term_to_label[normalized_name].lower()
+                author['type'] = term_to_label[normalized_name]['type'].lower()
 
         for recipient in document['recipients']:
             normalized_name = normalize_term(recipient['name'])
             recipient['name'] = convert_name(recipient['name'])
             if normalized_name in term_to_label:
-                recipient['type'] = term_to_label[normalized_name].lower()
+                recipient['type'] = term_to_label[normalized_name]['type'].lower()
 
         if document['location']:
             location_name = document['location']['name']
             normalized_location = normalize_term(location_name)
             if normalized_location in term_to_label:
-                document['location']['type'] = term_to_label[normalized_location].lower()
+                document['location']['type'] = term_to_label[normalized_location]['type'].lower()
 
         updated_terms = []
         for term in document['indexing']:
@@ -123,9 +165,9 @@ def update_json_with_classifications(json_data, term_to_label):
             midsub_term = term.get('midsub', "")
             sub_term = term.get('sub', "")
 
-            main_label = term_to_label.get(main_term, 'TERM')
-            midsub_label = term_to_label.get(midsub_term, 'TERM') if midsub_term else 'TERM'
-            sub_label = term_to_label.get(sub_term, 'TERM') if sub_term else 'TERM'
+            main_label = term_to_label.get(normalize_term(main_term), {'type': 'TERM'})['type']
+            midsub_label = term_to_label.get(normalize_term(midsub_term), {'type': 'TERM'})['type'] if midsub_term else 'TERM'
+            sub_label = term_to_label.get(normalize_term(sub_term), {'type': 'TERM'})['type'] if sub_term else 'TERM'
 
             # Create main term objects
             main_term_obj = create_term_obj(main_term, main_label)
@@ -144,9 +186,20 @@ def update_json_with_classifications(json_data, term_to_label):
 
     return {'documents': json_data['documents']}
 
+
 if __name__ == '__main__':
     # Initialize global variables
     known_entities = {}
+    api_prompt = '''
+    You are an NER system that classifies terms into PERSON, PLACE, ORGANIZATION, or TERM. Please look at each provided 
+    term in the list, and return it in the format {classification: 'example_class'}. For example, if an input term is 
+    'Thomas Jefferson', you should return {classification: 'PERSON'}. Additionally, please only differentiate terms by line. 
+    'Aberdeen, Scotland' should be one term, as it occupies one line. Please output as a json object in the following format:
+
+    {
+        classification: string // A string describing the term as a PERSON, PLACE, ORGANIZATION, or TERM
+    }
+    '''
 
     parser = argparse.ArgumentParser(description='Classify JSON terms.')
     parser.add_argument('modify_json_file', help='Path to the JSON file')
@@ -155,7 +208,7 @@ if __name__ == '__main__':
     parser.add_argument('batch_size', help='API Call Batch Size')
     args = parser.parse_args()
 
-    with open(args.modify_json_file, 'r') as f:
+    with open(f'data/{args.modify_json_file}', 'r') as f:
         json_data = json.load(f)
     
     # Initial pass to populate known entities
@@ -181,11 +234,11 @@ if __name__ == '__main__':
             if isinstance(sub_term, str):
                 terms_to_classify.add(sub_term)
 
-    term_to_label, word_count = classify_terms(list(terms_to_classify), args.api_key, args.model, int(args.batch_size))
+    term_to_label, word_count = classify_terms(list(terms_to_classify), args.api_key, args.model)
 
     updated_json_data = update_json_with_classifications(json_data, term_to_label)
     
-    with open(args.modify_json_file, 'w') as f:
+    with open(f'data/{args.modify_json_file}', 'w') as f:
         json.dump(updated_json_data, f, indent=4)
 
     print(f"Classified JSON data has been written to {args.modify_json_file}. {word_count} total terms processed.")
