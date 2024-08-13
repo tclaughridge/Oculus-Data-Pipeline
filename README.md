@@ -19,9 +19,9 @@ Next, open the file ```run_pipeline.py``` in your preferred text editor. You wil
 
 As a quick walkthrough - The first section, labeled **OpenAI**, contains three elements.
 
-The first is the ```api_key```. By default, this is set to an internal environment variable. To link the API to your own account, you can either set up your own .env file, or you can simply replace the current value with your own key. Ex: ```api_key = 'abc123'```
+The first is the ```api_key```. By default, this is set to an internal environment variable. To link the API to your own account, you can either set up your own .env file, or you can simply replace the current value with your own key. Ex: ```api_key = 'abc123'```. This key can be created/found under the OpenAI API Dashboard: https://platform.openai.com/api-keys
 
-The second and third parameters are the ```model``` (version of ChatGPT, essentially) and ```batch_size``` (how large the input is allowed to be) which the API will use. These can probably be left alone.
+The second paremeter is the ```model``` which the API will use. By default, this is set to ```gpt-4o-mini```. This should be updated to the most speed/cost/accuracy efficient model at the time you are using the pipeline.
 
 The next section, labeled **Neo4j**, contains the identifier and login information for a Neo4j database. These settings: ```NEO4J_URI```, ```NEO4J_USER```, and ```NEO4J_PASSWORD``` will need to be modified depending on the variant and location of your database. Refer to https://neo4j.com/docs/operations-manual/current/configuration/ for more info.
 
