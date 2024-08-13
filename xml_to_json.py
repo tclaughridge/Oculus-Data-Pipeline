@@ -8,10 +8,6 @@ def normalize_term(term):
     # Normalize the term for consistent comparison
     return re.sub(r'\s+', ' ', term).strip().lower()
 
-def normalize_term(term):
-    # Normalize the term for consistent comparison
-    return re.sub(r'\s+', ' ', term).strip().lower()
-
 def collect_terms_from_xml(document):
     terms = []
     unique_terms = set()
@@ -49,24 +45,16 @@ def parse_xml_to_json(xml_file):
     root = tree.getroot()
     
     documents = []
-    known_entities = {}
     all_terms = []
 
     for document in root.findall('document'):
         authors = [{'name': author.text} for author in document.findall('./authors/author')]
         recipients = [{'name': recipient.text} for recipient in document.findall('./recipients/recipient')]
         
-        # Add authors and recipients to known entities
-        for author in authors:
-            known_entities[normalize_term(author['name'])] = 'PERSON'
-        for recipient in recipients:
-            known_entities[normalize_term(recipient['name'])] = 'PERSON'
-        
         location = document.find('./location/placeName')
         location_name = None
         if location is not None:
             location_name = location.text.strip()
-            known_entities[normalize_term(location_name)] = 'GPE'
         
         terms = collect_terms_from_xml(document)
         all_terms.extend(terms)
@@ -95,23 +83,33 @@ def parse_xml_to_json(xml_file):
 
     json_data = {
         'documents': documents,
-        'known_entities': known_entities
     }
     
     return json_data
 
 if __name__ == '__main__':
-    # Create data directory
-    os.makedirs("data", exist_ok=True)
-
     parser = argparse.ArgumentParser(description='Convert XML to JSON.')
     parser.add_argument('input_file', help='Path to the input XML file')
-    parser.add_argument('output_file', help='Path to the output JSON file')
+    parser.add_argument('output_file', help='Name of the output JSON file')
     args = parser.parse_args()
 
+    # Determine the directory of the script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Define the data directory within the script's directory
+    data_dir = os.path.join(script_dir, 'data')
+
+    # Create the data directory if it doesn't exist
+    os.makedirs(data_dir, exist_ok=True)
+
+    # Construct the output file path within the data directory
+    output_path = os.path.join(data_dir, args.output_file)
+
+    # Convert the XML to JSON
     json_data = parse_xml_to_json(args.input_file)
     
-    with open(f'data/{args.output_file}', 'w') as f:
+    # Write to the output file in the data directory
+    with open(output_path, 'w') as f:
         json.dump(json_data, f, indent=4)
 
-    print(f"JSON data has been written to {args.output_file}")
+    print(f"JSON data has been written to {output_path}")

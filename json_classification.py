@@ -2,48 +2,112 @@ import json
 import re
 import time
 import argparse
-from tqdm import tqdm
 from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
 
+def load_mock_data(input_file, output_file):
+    """
+    Loads pre-existing data for testing purposes instead of making API calls
+
+    Args:
+    input_file (str): Path to the input file
+    output_file (str): Path to the output file
+    """
+    input_dict = {}
+    with open(input_file, 'r') as infile:
+        for line in infile:
+            entry = json.loads(line)
+            custom_id = entry['custom_id']
+            content = entry['body']['messages'][1]['content']
+            input_dict[custom_id] = content
+
+    output_dict = {}
+    with open(output_file, 'r') as outfile:
+        for line in outfile:
+            entry = json.loads(line)
+            custom_id = entry['custom_id']
+            classification = json.loads(entry['response']['body']['choices'][0]['message']['content'])['classification']
+            output_dict[custom_id] = classification
+
+    matched_data = [{"custom_id": cid, "content": input_dict.get(cid, "Unknown"), "classification": output_dict.get(cid, "Unknown")} for cid in input_dict]
+    
+    return matched_data
+
+
 def convert_name(name):
-    # Convert from "Last, First" to "First Last"
+    """
+    Convert a name from 'Last, First' to 'First Last'
+
+    Args:
+    name (str): The name to convert
+    """
     if ',' in name:
         parts = name.split(', ')
         if len(parts) == 2:
             return f"{parts[1]} {parts[0]}"
     return name
 
+
 def normalize_term(term):
-    # Normalize the term for consistent comparison
+    """
+    Normalize the term for consistent comparison
+
+    Args:
+    term (str): The term to normalize
+    """
     return re.sub(r'\s+', ' ', term).strip().lower()
 
+
 def create_term_obj(term, label):
-    # Create a term object with the appropriate fields
+    """
+    Create a term object with the term and label
+
+    Args:
+    term (str): The term
+    label (str): The label (person, place, organization, term)
+    """
     term_obj = {
-        'term': convert_name(term) if label == 'PERSON' else term,
+        'term': convert_name(term) if label == 'person' else term,
         'type': label.lower()
     }
     return term_obj
 
-def classify_terms(terms, api_key, model):
+
+def classify_terms(terms, api_key, model, test_mode=False):
+    """
+    Classify the terms using the OpenAI Batching API
+
+    Args:
+    terms (list): The list of terms to classify
+    api_key (str): The OpenAI API Key
+    model (str): The OpenAI model to use
+    test_mode (bool): Whether to use existing files for testing instead of making API calls
+    """
+    
+    # Use pre-existing data for testing if test_mode is enabled
+    if test_mode:
+        print("Test mode enabled, using existing files instead of making API calls.")
+        matched_data = load_mock_data('data/batch_tasks.jsonl', 'data/batch_job_results.jsonl')
+        return matched_data, len(matched_data)
+    
     # Prepare the request for the OpenAI API
     client = OpenAI(api_key=api_key,)
-    term_to_label = {}
-    word_count = 0
+
+    # Track number of requests sent to API
+    request_count = 0
 
     tasks = []
 
     for index, term in enumerate(terms):
-        # Remove known entities from the batch
-        word_count += len(term.split())
+        # Known entities check
         if normalize_term(term) in known_entities:
             continue
-        
+
         # Accumulate tasks
         task = {
+            # API request parameters
             "custom_id": f"task-{index}",
             "method": "POST",
             "url": "/v1/chat/completions",
@@ -67,6 +131,9 @@ def classify_terms(terms, api_key, model):
         }
         tasks.append(task)
 
+        # Increment request count based on # of tasks
+        request_count += 1
+
     # Creating batch file
     with open('data/batch_tasks.jsonl', 'w') as file:
         for obj in tasks:
@@ -89,9 +156,10 @@ def classify_terms(terms, api_key, model):
     # Await response
     print("Awaiting response...")
     while True:
+        # Continually check the status of the batch job until complete
         batch_job = client.batches.retrieve(batch_job.id)
         if batch_job.status == "completed" or batch_job.status == "failed":
-            print(f"Batch job completed with status {batch_job.status}.")
+            print(f"Batch job {batch_job.status}.")
             break
         time.sleep(5)
 
@@ -101,90 +169,97 @@ def classify_terms(terms, api_key, model):
 
     with open("data/batch_job_results.jsonl", 'wb') as file:
         file.write(result)
+
+    # Process Results
+
+    # Load the API input data
+    input_dict = {}
+    with open('data/batch_tasks.jsonl', 'r') as infile:
+        for line in infile:
+            entry = json.loads(line)
+            custom_id = entry['custom_id']
+            # Extract the user's message content (this is the term to be classified)
+            content = entry['body']['messages'][1]['content']
+            input_dict[custom_id] = content
+
+    # Load the API output data
+    output_dict = {}
+    with open('data/batch_job_results.jsonl', 'r') as outfile:
+        for line in outfile:
+            entry = json.loads(line)
+            custom_id = entry['custom_id']
+            classification = json.loads(entry['response']['body']['choices'][0]['message']['content'])['classification']
+            output_dict[custom_id] = classification
+
+    # Match the input and output data based on custom_id
+    matched_data = [{"custom_id": cid, "content": input_dict.get(cid, "Unknown"), "classification": output_dict.get(cid, "Unknown")} for cid in input_dict]
     
-    # Map custom_id to terms from batch_tasks.jsonl
-    term_mapping = {}
-    with open('data/batch_tasks.jsonl', 'r') as file:
-        for line in file:
-            json_object = json.loads(line.strip())
-            custom_id = json_object['custom_id']
-            term = json_object['body']['messages'][1]['content']
-            term_mapping[custom_id] = term
-    
-    # Loading data from saved file
-    with open('data/batch_job_results.jsonl', 'r') as file:
-        for line in file:
-            json_object = json.loads(line.strip())
-            custom_id = json_object['custom_id']
-            term = term_mapping[custom_id]
-            classification = json_object['response']['body']['choices'][0]['message']['content'].strip()
+    return matched_data, request_count
 
-            try:
-                classification_data = json.loads(classification)
-                term_type = classification_data['classification']
 
-                term_to_label[term] = {
-                    'type': term_type,
-                }
+def update_json(json_data, matched_data):
+    """
+    Update the JSON data with the classified terms
 
-                # Update global known entities if applicable
-                if term_type in ['PERSON', 'PLACE', 'ORGANIZATION']:
-                    known_entities[normalize_term(term)] = term_type
+    Args:
+    json_data (dict): The JSON data to update
+    matched_data (dict): The matched data retrieved from the API
+    """
 
-            except (json.JSONDecodeError, KeyError) as e:
-                print(f"Error parsing response for term {term}: {e}")
-                term_to_label[term] = {
-                    'type': 'TERM',
-                }
-
-    return term_to_label, word_count
-
-def update_json_with_classifications(json_data, term_to_label):
+    # Loop through each document in the JSON data
     for document in json_data['documents']:
+
+        # Convert author and recipient names
         for author in document['authors']:
-            normalized_name = normalize_term(author['name'])
             author['name'] = convert_name(author['name'])
-            if normalized_name in term_to_label:
-                author['type'] = term_to_label[normalized_name]['type'].lower()
 
         for recipient in document['recipients']:
-            normalized_name = normalize_term(recipient['name'])
             recipient['name'] = convert_name(recipient['name'])
-            if normalized_name in term_to_label:
-                recipient['type'] = term_to_label[normalized_name]['type'].lower()
-
-        if document['location']:
-            location_name = document['location']['name']
-            normalized_location = normalize_term(location_name)
-            if normalized_location in term_to_label:
-                document['location']['type'] = term_to_label[normalized_location]['type'].lower()
-
+        
+        # Loop through index terms
         updated_terms = []
-        for term in document['indexing']:
+        for term in document.get('indexing', []):
+            # Extract main, midsub, and sub terms
             main_term = term.get('main', "")
             midsub_term = term.get('midsub', "")
             sub_term = term.get('sub', "")
 
-            main_label = term_to_label.get(normalize_term(main_term), {'type': 'TERM'})['type']
-            midsub_label = term_to_label.get(normalize_term(midsub_term), {'type': 'TERM'})['type'] if midsub_term else 'TERM'
-            sub_label = term_to_label.get(normalize_term(sub_term), {'type': 'TERM'})['type'] if sub_term else 'TERM'
+            # Extract term strings from dictionaries if necessary
+            main_term_str = main_term['term'] if isinstance(main_term, dict) else main_term
+            midsub_term_str = midsub_term['term'] if isinstance(midsub_term, dict) else midsub_term
+            sub_term_str = sub_term['term'] if isinstance(sub_term, dict) else sub_term
 
-            # Create main term objects
-            main_term_obj = create_term_obj(main_term, main_label)
+            # Normalize the terms
+            normalized_main = normalize_term(main_term_str)
+            normalized_midsub = normalize_term(midsub_term_str)
+            normalized_sub = normalize_term(sub_term_str)
 
-            # Create midsub term objects and attach to main terms
-            if midsub_term:
-                main_term_obj['midsub'] = create_term_obj(midsub_term, midsub_label)
+            # Assign labels from matched_data or fallback to 'TERM'
+            if normalized_main in known_entities:
+                # Use known entity classification if available
+                main_label = known_entities[normalized_main]
+            else:
+                main_label = matched_data.get(normalized_main, {'type': 'TERM'})['type']
+            midsub_label = matched_data.get(normalized_midsub, {'type': 'TERM'})['type'] if midsub_term_str else 'TERM'
+            sub_label = matched_data.get(normalized_sub, {'type': 'TERM'})['type'] if sub_term_str else 'TERM'
 
-            # Create sub term objects and attach to main terms
-            if sub_term:
-                main_term_obj['sub'] = create_term_obj(sub_term, sub_label)
+            # Create main term object
+            main_term_obj = create_term_obj(main_term_str, main_label)
+
+            # Create midsub term object and attach to main term
+            if midsub_term_str:
+                main_term_obj['midsub'] = create_term_obj(midsub_term_str, midsub_label)
+
+            # Create sub term object and attach to main term
+            if sub_term_str:
+                main_term_obj['sub'] = create_term_obj(sub_term_str, sub_label)
 
             updated_terms.append(main_term_obj)
         
         document['indexing'] = updated_terms
 
-    return {'documents': json_data['documents']}
+    return json_data
+
 
 
 if __name__ == '__main__':
@@ -201,25 +276,28 @@ if __name__ == '__main__':
     }
     '''
 
+    # Parse command line arguments
     parser = argparse.ArgumentParser(description='Classify JSON terms.')
     parser.add_argument('modify_json_file', help='Path to the JSON file')
     parser.add_argument('api_key', help='OpenAI API Key')
     parser.add_argument('model', help='OpenAI Model')
-    parser.add_argument('batch_size', help='API Call Batch Size')
+    parser.add_argument('--test-mode', action='store_true', help='Use existing input and output files for testing without making API calls')
     args = parser.parse_args()
 
+    # Load JSON data
     with open(f'data/{args.modify_json_file}', 'r') as f:
         json_data = json.load(f)
     
     # Initial pass to populate known entities
     for document in json_data['documents']:
         for author in document.get('authors', []):
-            known_entities[normalize_term(author['name'])] = 'PERSON'
+            known_entities[normalize_term(author['name'])] = 'person'
         for recipient in document.get('recipients', []):
-            known_entities[normalize_term(recipient['name'])] = 'PERSON'
+            known_entities[normalize_term(recipient['name'])] = 'person'
         if 'location' in document and document['location']:
-            known_entities[normalize_term(document['location']['name'])] = 'PLACE'
+            known_entities[normalize_term(document['location']['name'])] = 'place'
 
+    # Extract terms to classify
     terms_to_classify = set()
     for document in json_data['documents']:
         for term in document['indexing']:
@@ -234,11 +312,19 @@ if __name__ == '__main__':
             if isinstance(sub_term, str):
                 terms_to_classify.add(sub_term)
 
-    term_to_label, word_count = classify_terms(list(terms_to_classify), args.api_key, args.model)
+    # Classify terms
+    term_to_label, request_count = classify_terms(list(terms_to_classify), args.api_key, args.model, args.test_mode)
 
-    updated_json_data = update_json_with_classifications(json_data, term_to_label)
+    # Convert classified terms to dict
+    term_to_label_dict = {
+        normalize_term(item['content']): {'type': item['classification'].lower()} for item in term_to_label
+    }
+
+    # Update JSON data with classified terms
+    updated_json_data = update_json(json_data, term_to_label_dict)
     
+    # Write updated JSON data to file
     with open(f'data/{args.modify_json_file}', 'w') as f:
         json.dump(updated_json_data, f, indent=4)
 
-    print(f"Classified JSON data has been written to {args.modify_json_file}. {word_count} total terms processed.")
+    print(f"Classified JSON data has been written to {args.modify_json_file}. {request_count} total terms processed.")

@@ -133,7 +133,7 @@ if __name__ == "__main__":
     parser.add_argument('json_file', help='Path to the JSON file')
     args = parser.parse_args()
 
-    with open(args.json_file, 'r') as f:
+    with open(f'data/{args.json_file}', 'r') as f:
         json_data = json.load(f)
 
     # Connect to the Neo4j database
