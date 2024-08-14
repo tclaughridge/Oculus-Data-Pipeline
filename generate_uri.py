@@ -75,14 +75,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Load the JSON data
-    with open(f'data/{args.modify_json_file}', 'r') as f:
+    with open(args.modify_json_file, 'r') as f:
         json_data = json.load(f)
 
     # Add URIs to the JSON data
     updated_json_data = add_uris_to_json(json_data)
 
     # Write the updated JSON data to a file
-    with open(f'data/{args.modify_json_file}', 'w') as f:
+    with open(args.modify_json_file, 'w') as f:
         json.dump(updated_json_data, f, indent=4)
 
     print(f"URIs written to {args.modify_json_file}")

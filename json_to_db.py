@@ -1,4 +1,5 @@
 import json
+import os
 import argparse
 from tqdm import tqdm
 from neo4j import GraphDatabase
@@ -74,9 +75,9 @@ def relate_date(tx, document_id, date, role):
     """
     tx.run(query, documentID=document_id, date=date)
 
-def import_data(json_data, driver):
+def import_data(json_data, driver, position):
     with driver.session() as session:
-        for document in tqdm(json_data['documents'], desc="Importing data to Neo4j", unit="doc"):
+        for document in tqdm(json_data['documents'], desc=f"Importing {base_filename} data to Neo4j", unit="doc", position=position):
             session.execute_write(create_document, document)
             
             for author in document['authors']:
@@ -125,15 +126,20 @@ def import_data(json_data, driver):
                     session.execute_write(create_term, term['sub'])
                     session.execute_write(relate_sub_term, term['term'], term['sub'], "sub", parent_type)
 
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Classify JSON terms.')
     parser.add_argument('NEO4J_URI', help='Neo4j URI')
     parser.add_argument('NEO4J_USER', help='Neo4j user')
     parser.add_argument('NEO4J_PASSWORD', help='Neo4j password')
     parser.add_argument('json_file', help='Path to the JSON file')
+    parser.add_argument('position', type=int, help='Position for tqdm progress bar')
     args = parser.parse_args()
 
-    with open(f'data/{args.json_file}', 'r') as f:
+    base_filename = os.path.basename(os.path.splitext(args.json_file)[0])
+
+    with open(args.json_file, 'r') as f:
         json_data = json.load(f)
 
     # Connect to the Neo4j database
@@ -143,9 +149,9 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error connecting to Neo4j database at {args.NEO4J_URI}.")
         print(e)
-        exit
+        exit()
 
     # Import the JSON data into Neo4j
-    import_data(json_data, driver)
+    import_data(json_data, driver, args.position)
 
     driver.close()

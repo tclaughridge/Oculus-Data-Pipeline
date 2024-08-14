@@ -17,7 +17,9 @@ pip install -r requirements.txt
 ```
 Next, open the file ```run_pipeline.py``` in your preferred text editor. You will see a section marked ```CONFIGURATION``` at the top of the file. Here you can modify the parameters of the script.
 
-As a quick walkthrough - The first section, labeled **OpenAI**, contains three elements.
+As a quick walkthrough - the first parameter, ```max_concurrent```, is the maximum number of files that can be concurrently processed by the pipeline. By default this is set to ```3```, and due to limitations on the number of API calls allowed at a time, it should probably not be raised much higher. **This could be subject to change in the future as API features are improved.
+
+The next section, labeled **OpenAI**, contains three elements.
 
 The first is the ```api_key```. By default, this is set to an internal environment variable. To link the API to your own account, you can either set up your own .env file, or you can simply replace the current value with your own key. Ex: ```api_key = 'abc123'```. This key can be created/found under the OpenAI API Dashboard: https://platform.openai.com/api-keys
 
@@ -35,10 +37,16 @@ python3 run_pipeline.py path/to/directory example.xml
 ```
 Substituting the two arguments ```path/to/directory``` and ```example.xml``` with the location and file name of your XML files.
 
-The pipeline can also handle multiple xml files at once. Simply add more filename arguments to the end of the command:
+The pipeline can also handle multiple xml files concurrently. Simply add more filename arguments to the end of the command:
 ```zsh
 python3 run_pipeline.py path/to/directory example.xml example2.xml example3.xml
 ```
+
+Additionally, leaving the filename arguments blank will prompt the pipeline to process every XML file in the specified directory:
+```zsh
+python3 run_pipeline.py path/to/directory
+```
+
 This master command will run each script in the pipeline sequentially, going from an XML file to insertion into the database with no manual intermediate steps required.
 
 If necessary, each pipeline script can also be run individually, taking the following arguments:
