@@ -25,6 +25,8 @@ The first is the ```api_key```. By default, this is set to an internal environme
 
 The second paremeter is the ```model``` which the API will use. By default, this is set to ```gpt-4o-mini```. This should be updated to the most speed/cost/accuracy efficient model at the time you are using the pipeline.
 
+The third parameter is ```test_mode```, which signals to the pipeline whether to create fresh classifications through the API, or to rely on previously created data. This parameter is useful when troubleshooting, as it allows you to run the whole pipeline without accumulating API costs.
+
 The next section, labeled **Neo4j**, contains the identifier and login information for a Neo4j database. These settings: ```NEO4J_URI```, ```NEO4J_USER```, and ```NEO4J_PASSWORD``` will need to be modified depending on the variant and location of your database. Refer to https://neo4j.com/docs/operations-manual/current/configuration/ for more info.
 
 Finally, the last parameter is the ```script_paths```. These can be left alone as long as all scripts included in the pipeline *remain in the same directory* together.
