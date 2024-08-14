@@ -5,14 +5,27 @@ import os
 import argparse
 
 def normalize_term(term):
-    # Normalize the term for consistent comparison
+    """
+    Normalize the term for consistent comparison
+
+    Args:
+    term (str): The term to normalize
+    """
     return re.sub(r'\s+', ' ', term).strip().lower()
 
+
 def collect_terms_from_xml(document):
+    """
+    Collect all terms from the XML document
+
+    Args:
+    document (ElementTree.Element): The XML document
+    """
     terms = []
     unique_terms = set()
 
     for index_term in document.findall('./indexing/indexTerm'):
+        # Extract the main, midsub, and sub terms
         main_term = index_term.find('main').text if index_term.find('main') is not None else ""
         midsub_term = index_term.find('midsub').text if index_term.find('midsub') is not None else ""
         sub_term = index_term.find('sub').text if index_term.find('sub') is not None else ""
@@ -22,43 +35,45 @@ def collect_terms_from_xml(document):
         midsub_term = re.sub(r'\(.*?\)', '', midsub_term).strip() if midsub_term else ""
         sub_term = re.sub(r'\(.*?\)', '', sub_term).strip() if sub_term else ""
 
+        # Uniquify the terms
         term_tuple = (main_term, midsub_term, sub_term)
-
         if term_tuple not in unique_terms:
             unique_terms.add(term_tuple)
             terms.append({'main': main_term, 'midsub': midsub_term, 'sub': sub_term})
 
     return terms
 
-def collect_terms_from_dict(document):
-    terms = []
-    for index_term in document['indexing']:
-        main_term = index_term.get('term', "")
-        midsub_term = index_term.get('midsub', {}).get('term', "")
-        sub_term = index_term.get('sub', {}).get('term', "")
-
-        terms.append((main_term, midsub_term, sub_term))
-    return terms
 
 def parse_xml_to_json(xml_file):
+    """
+    Parse the XML file and convert it to JSON
+
+    Args:
+    xml_file (str): The path to the XML file
+    """
     tree = ET.parse(xml_file)
     root = tree.getroot()
     
     documents = []
     all_terms = []
 
+    # Loop through each document in the XML
     for document in root.findall('document'):
+        # Extract the authors and recipients
         authors = [{'name': author.text} for author in document.findall('./authors/author')]
         recipients = [{'name': recipient.text} for recipient in document.findall('./recipients/recipient')]
         
+        # Extract the location
         location = document.find('./location/placeName')
         location_name = None
         if location is not None:
             location_name = location.text.strip()
         
+        # Extract the terms
         terms = collect_terms_from_xml(document)
         all_terms.extend(terms)
 
+        # Construct the document object
         doc = {
             'documentID': document.find('documentID').text if document.find('documentID') is not None else None,
             'documentTitle': document.find('documentTitle').text if document.find('documentTitle') is not None else None,
@@ -87,7 +102,10 @@ def parse_xml_to_json(xml_file):
     
     return json_data
 
+
+
 if __name__ == '__main__':
+    # Define the command-line arguments
     parser = argparse.ArgumentParser(description='Convert XML to JSON.')
     parser.add_argument('input_file', help='Path to the input XML file')
     parser.add_argument('output_file', help='Name of the output JSON file')
