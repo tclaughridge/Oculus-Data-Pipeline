@@ -41,12 +41,12 @@ if __name__ == '__main__':
     parser.add_argument('modify_json_file', help='Path to the JSON file')
     args = parser.parse_args()
 
-    with open(args.modify_json_file, 'r') as f:
+    with open(f'data/{args.modify_json_file}', 'r') as f:
         json_data = json.load(f)
 
     updated_json_data = add_uris_to_json(json_data)
 
-    with open(args.modify_json_file, 'w') as f:
+    with open(f'data/{args.modify_json_file}', 'w') as f:
         json.dump(updated_json_data, f, indent=4)
 
     print(f"URIs written to {args.modify_json_file}")
