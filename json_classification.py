@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import time
 import argparse
@@ -38,15 +39,31 @@ def load_mock_data(input_file, output_file):
 
 def convert_name(name):
     """
-    Convert a name from 'Last, First' to 'First Last'
+    Convert a name from 'Last, First' to 'Title First Last', handling cases with titles, prefixes, and suffixes.
 
     Args:
     name (str): The name to convert
+
+    Returns:
+    str: The name in 'Title First Last' format
     """
     if ',' in name:
         parts = name.split(', ')
         if len(parts) == 2:
-            return f"{parts[1]} {parts[0]}"
+            last_name = parts[0]
+            first_name_and_titles = parts[1]
+
+            # Identify the title or prefix (e.g., "Baron", "marquis") if it exists
+            titles = []
+            title_keywords = ["Baron", "Sir", "Dr.", "Lord", "Dame", "Count", "Countess", "King", "Queen", "Prince", "Princess", "Duke", "Duchess", "marquis", "marchioness", "von", "de"]
+
+            for keyword in title_keywords:
+                if keyword in first_name_and_titles:
+                    titles.append(keyword)
+                    first_name_and_titles = first_name_and_titles.replace(keyword, '').strip()
+
+            title_str = " ".join(titles)
+            return f"{title_str} {first_name_and_titles} de {last_name}" if title_str else f"{first_name_and_titles} {last_name}"
     return name
 
 
@@ -89,7 +106,7 @@ def classify_terms(terms, api_key, model, test_mode=False):
     # Use pre-existing data for testing if test_mode is enabled
     if test_mode:
         print("Test mode enabled, using existing files instead of making API calls.")
-        matched_data = load_mock_data('data/batch_tasks.jsonl', 'data/batch_job_results.jsonl')
+        matched_data = load_mock_data(f'data/batch_tasks_{base_filename}.jsonl', f'data/batch_results_{base_filename}.jsonl')
         return matched_data, len(matched_data)
     
     # Prepare the request for the OpenAI API
@@ -135,13 +152,13 @@ def classify_terms(terms, api_key, model, test_mode=False):
         request_count += 1
 
     # Creating batch file
-    with open('data/batch_tasks.jsonl', 'w') as file:
+    with open(f'data/batch_tasks_{base_filename}.jsonl', 'w') as file:
         for obj in tasks:
             file.write(json.dumps(obj) + '\n')
     
     # Uploading batch file
     batch_file = client.files.create(
-        file=open('data/batch_tasks.jsonl', 'rb'),
+        file=open(f'data/batch_tasks_{base_filename}.jsonl', 'rb'),
         purpose="batch"
     )
 
@@ -152,7 +169,7 @@ def classify_terms(terms, api_key, model, test_mode=False):
             endpoint="/v1/chat/completions",
             completion_window="24h"
         )
-        print(f"Batch sent to OpenAI API. Job ID: {batch_job.id}")
+        print(f"Batch sent to OpenAI API for ({base_filename}). Job ID: {batch_job.id}")
     except Exception as e:
         print(f"Error creating batch job: {e}")
         return
@@ -171,13 +188,13 @@ def classify_terms(terms, api_key, model, test_mode=False):
     result_file_id = batch_job.output_file_id
     result = client.files.content(result_file_id).content
 
-    with open("data/batch_job_results.jsonl", 'wb') as file:
+    with open(f"data/batch_results_{base_filename}.jsonl", 'wb') as file:
         file.write(result)
 
     # Process Results
     # Load the API input data
     input_dict = {}
-    with open('data/batch_tasks.jsonl', 'r') as infile:
+    with open(f'data/batch_tasks_{base_filename}.jsonl', 'r') as infile:
         for line in infile:
             entry = json.loads(line)
             custom_id = entry['custom_id']
@@ -187,7 +204,7 @@ def classify_terms(terms, api_key, model, test_mode=False):
 
     # Load the API output data
     output_dict = {}
-    with open('data/batch_job_results.jsonl', 'r') as outfile:
+    with open(f'data/batch_results_{base_filename}.jsonl', 'r') as outfile:
         for line in outfile:
             entry = json.loads(line)
             custom_id = entry['custom_id']
@@ -287,8 +304,10 @@ if __name__ == '__main__':
     parser.add_argument('--test-mode', action='store_true', help='Use existing input and output files for testing without making API calls')
     args = parser.parse_args()
 
+    base_filename = os.path.basename(os.path.splitext(args.modify_json_file)[0])
+
     # Load JSON data
-    with open(f'data/{args.modify_json_file}', 'r') as f:
+    with open(f'{args.modify_json_file}', 'r') as f:
         json_data = json.load(f)
     
     # Initial pass to populate known entities
