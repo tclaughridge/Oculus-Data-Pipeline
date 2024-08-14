@@ -14,7 +14,7 @@ max_concurrent = 3
 # OpenAI
 api_key = os.getenv("OPENAI_API_KEY")
 model = 'gpt-4o-mini'
-test_mode = True
+test_mode = False
 
 # Neo4j
 NEO4J_URI = "bolt://localhost:7687"
@@ -32,6 +32,15 @@ script_paths = {
 # ==============================================================================
 
 def process_file_pipeline(xml_file, xml_dir, data_dir, position):
+    """
+    Process a single XML file through the pipeline.
+
+    Args:
+    xml_file (str): The XML file to process
+    xml_dir (str): The directory containing the XML files
+    data_dir (str): The directory to store the JSON files
+    position (int): The position for the progress bar
+    """
     print(f"Processing {xml_file}...")
 
     # Construct the full path to the XML file
@@ -68,6 +77,14 @@ def process_file_pipeline(xml_file, xml_dir, data_dir, position):
     print(f"Finished processing {xml_file}.")
 
 def run_pipeline(xml_dir, xml_files):
+    """
+    Run the data processing pipeline.
+
+    Args:
+    xml_dir (str): The directory containing the XML files
+    xml_files (list): A list of XML files to process
+    """
+
     # Determine the directory of the script
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -76,6 +93,13 @@ def run_pipeline(xml_dir, xml_files):
 
     # Ensure the data directory exists
     os.makedirs(data_dir, exist_ok=True)
+
+    # If no XML files are specified, process all XML files in the directory
+    if not xml_files:
+        xml_files = [f for f in os.listdir(xml_dir) if f.endswith('.xml')]
+        if not xml_files:
+            print(f"No XML files found in directory: {xml_dir}")
+            return
 
     # Use ProcessPoolExecutor to run the entire pipeline concurrently for each XML file
     with ProcessPoolExecutor(max_workers=max_concurrent) as executor:
@@ -93,7 +117,7 @@ def run_pipeline(xml_dir, xml_files):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the data processing pipeline.')
     parser.add_argument('xml_dir', help='Directory containing the XML files')
-    parser.add_argument('xml_files', nargs='+', help='List of XML files to process')
+    parser.add_argument('xml_files', nargs='*', help='List of XML files to process')
     args = parser.parse_args()
 
     run_pipeline(args.xml_dir, args.xml_files)
