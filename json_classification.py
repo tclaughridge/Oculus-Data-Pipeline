@@ -346,7 +346,7 @@ if __name__ == '__main__':
     updated_json_data = update_json(json_data, term_to_label_dict)
     
     # Write updated JSON data to file
-    with open(f'data/{args.modify_json_file}', 'w') as f:
+    with open(args.modify_json_file, 'w') as f:
         json.dump(updated_json_data, f, indent=4)
 
     print(f"Classified JSON data has been written to {args.modify_json_file}. {request_count} total terms processed.")

@@ -14,6 +14,7 @@ max_concurrent = 3
 # OpenAI
 api_key = os.getenv("OPENAI_API_KEY")
 model = 'gpt-4o-mini'
+test_mode = True
 
 # Neo4j
 NEO4J_URI = "bolt://localhost:7687"
@@ -30,7 +31,7 @@ script_paths = {
 
 # ==============================================================================
 
-def process_file_pipeline(xml_file, xml_dir, data_dir):
+def process_file_pipeline(xml_file, xml_dir, data_dir, position):
     print(f"Processing {xml_file}...")
 
     # Construct the full path to the XML file
@@ -47,7 +48,7 @@ def process_file_pipeline(xml_file, xml_dir, data_dir):
         return
     
     # Step 2: Classify terms in JSON
-    result = subprocess.run(["python3", script_paths["json_classification"], json_file_path, api_key, model])
+    result = subprocess.run(["python3", script_paths["json_classification"], json_file_path, api_key, model, '--test-mode' if test_mode else ''])
     if result.returncode != 0:
         print(f"Error in json_classification.py for file {json_file}")
         return
@@ -59,7 +60,7 @@ def process_file_pipeline(xml_file, xml_dir, data_dir):
         return
 
     # Step 4: Insert JSON into Neo4j database
-    result = subprocess.run(["python3", script_paths["json_to_db"], NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, json_file_path])
+    result = subprocess.run(["python3", script_paths["json_to_db"], NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, json_file_path, str(position)])
     if result.returncode != 0:
         print(f"Error in json_to_db.py for file {json_file}")
         return
@@ -78,7 +79,10 @@ def run_pipeline(xml_dir, xml_files):
 
     # Use ProcessPoolExecutor to run the entire pipeline concurrently for each XML file
     with ProcessPoolExecutor(max_workers=max_concurrent) as executor:
-        futures = [executor.submit(process_file_pipeline, xml_file, xml_dir, data_dir) for xml_file in xml_files]
+        futures = [
+            executor.submit(process_file_pipeline, xml_file, xml_dir, data_dir, i)
+            for i, xml_file in enumerate(xml_files)
+        ]
         
         for future in futures:
             try:
