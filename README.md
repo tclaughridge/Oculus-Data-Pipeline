@@ -51,7 +51,7 @@ If necessary, each pipeline script can also be run individually, taking the foll
 2. ```json_classification.py``` classifies terms in the JSON using the OpenAI API
 
    ```zsh
-   python3 json_classification.py input_file.json api_key model batch_size
+   python3 json_classification.py input_file.json api_key model --test-mode=False
    ```
 3. ```generate_uri.py``` generates URIs for all classified terms
    
