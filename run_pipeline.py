@@ -44,7 +44,6 @@ def run_pipeline(xml_dir, xml_files):
 
         # Determine the output JSON file name and path
         json_file = xml_file.replace('.xml', '.json')
-        json_file_path = os.path.join(data_dir, json_file)
         
         # Step 1: Translate XML to JSON
         result = subprocess.run(["python3", script_paths["xml_to_json"], xml_file_path, json_file])

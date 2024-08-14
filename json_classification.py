@@ -146,12 +146,16 @@ def classify_terms(terms, api_key, model, test_mode=False):
     )
 
     # Creating batch job
-    batch_job = client.batches.create(
-        input_file_id=batch_file.id,
-        endpoint="/v1/chat/completions",
-        completion_window="24h"
-    )
-    print(f"Batch sent to OpenAI API. Job ID: {batch_job.id}")
+    try:
+        batch_job = client.batches.create(
+            input_file_id=batch_file.id,
+            endpoint="/v1/chat/completions",
+            completion_window="24h"
+        )
+        print(f"Batch sent to OpenAI API. Job ID: {batch_job.id}")
+    except Exception as e:
+        print(f"Error creating batch job: {e}")
+        return
 
     # Await response
     print("Awaiting response...")
@@ -171,7 +175,6 @@ def classify_terms(terms, api_key, model, test_mode=False):
         file.write(result)
 
     # Process Results
-
     # Load the API input data
     input_dict = {}
     with open('data/batch_tasks.jsonl', 'r') as infile:

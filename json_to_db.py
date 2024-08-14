@@ -137,7 +137,13 @@ if __name__ == "__main__":
         json_data = json.load(f)
 
     # Connect to the Neo4j database
-    driver = GraphDatabase.driver(args.NEO4J_URI, auth=(args.NEO4J_USER, args.NEO4J_PASSWORD))
+    try:
+        driver = GraphDatabase.driver(args.NEO4J_URI, auth=(args.NEO4J_USER, args.NEO4J_PASSWORD))
+        print(f"Connected to Neo4j database at {args.NEO4J_URI}.")
+    except Exception as e:
+        print(f"Error connecting to Neo4j database at {args.NEO4J_URI}.")
+        print(e)
+        exit
 
     # Import the JSON data into Neo4j
     import_data(json_data, driver)
