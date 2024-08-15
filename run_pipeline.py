@@ -14,7 +14,7 @@ max_concurrent = 3
 # OpenAI
 api_key = os.getenv("OPENAI_API_KEY")
 model = 'gpt-4o-mini'
-test_mode = False
+test_mode = True
 
 # Neo4j
 NEO4J_URI = "bolt://localhost:7687"
@@ -31,7 +31,7 @@ script_paths = {
 
 # ==============================================================================
 
-def process_file_pipeline(xml_file, xml_dir, data_dir, position):
+def process_file_pipeline(xml_file, xml_dir, data_dir, uri_position, db_position):
     """
     Process a single XML file through the pipeline.
 
@@ -39,7 +39,8 @@ def process_file_pipeline(xml_file, xml_dir, data_dir, position):
     xml_file (str): The XML file to process
     xml_dir (str): The directory containing the XML files
     data_dir (str): The directory to store the JSON files
-    position (int): The position for the progress bar
+    uri_position (int): The position for the URI generation progress bar
+    db_position (int): The position for the JSON to DB progress bar
     """
     print(f"Processing {xml_file}...")
 
@@ -57,19 +58,24 @@ def process_file_pipeline(xml_file, xml_dir, data_dir, position):
         return
     
     # Step 2: Classify terms in JSON
-    result = subprocess.run(["python3", script_paths["json_classification"], json_file_path, api_key, model, '--test-mode' if test_mode else ''])
+    if test_mode:
+        result = subprocess.run(["python3", script_paths["json_classification"], json_file_path, api_key, model, '--test-mode'])
+    else:
+        result = subprocess.run(["python3", script_paths["json_classification"], json_file_path, api_key, model])
     if result.returncode != 0:
         print(f"Error in json_classification.py for file {json_file}")
         return
     
     # Step 3: Generate URIs for classified terms
-    result = subprocess.run(["python3", script_paths["generate_uri"], json_file_path])
+    result = subprocess.run(["python3", script_paths["generate_uri"], json_file_path, str(uri_position)])
     if result.returncode != 0:
         print(f"Error in generate_uri.py for file {json_file}")
         return
+    
+    exit(0) # Skip the next step for now
 
     # Step 4: Insert JSON into Neo4j database
-    result = subprocess.run(["python3", script_paths["json_to_db"], NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, json_file_path, str(position)])
+    result = subprocess.run(["python3", script_paths["json_to_db"], NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, json_file_path, str(db_position)])
     if result.returncode != 0:
         print(f"Error in json_to_db.py for file {json_file}")
         return
@@ -104,7 +110,7 @@ def run_pipeline(xml_dir, xml_files):
     # Use ProcessPoolExecutor to run the entire pipeline concurrently for each XML file
     with ProcessPoolExecutor(max_workers=max_concurrent) as executor:
         futures = [
-            executor.submit(process_file_pipeline, xml_file, xml_dir, data_dir, i)
+            executor.submit(process_file_pipeline, xml_file, xml_dir, data_dir, i, i)
             for i, xml_file in enumerate(xml_files)
         ]
         
